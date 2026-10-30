@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Carte Option EJP, démo</title>
+<style>
+  body { margin: 0; padding: 24px 16px; background: #111827; font-family: Roboto, "Segoe UI", system-ui, sans-serif; color: #e5e7eb; }
+  body.light { background: #eef1f5; color: #1f2937; }
+  h1 { font-size: 1.2rem; margin: 0 0 4px; } p { margin: 0 0 18px; font-size: .9rem; opacity: .8; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 460px)); gap: 20px; }
+  .bar { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+  button { padding: 6px 12px; border-radius: 8px; border: 1px solid #4b5563; background: transparent; color: inherit; cursor: pointer; }
+</style>
+</head>
+<body>
+<h1>Carte Option EJP</h1>
+<p>Démo avec des données fictives : la vraie carte, sans Home Assistant.</p>
+<div class="bar">
+  <button data-s="ejp">Jour EJP (Pointe Mobile)</button>
+  <button data-s="demain">Demain EJP</button>
+  <button data-s="normal">Jour normal</button>
+  <button data-s="theme">Clair / sombre</button>
+</div>
+<div class="grid" id="grid"></div>
+<script>
+  // Démo en pleine saison : la page fait comme si on était le 15 janvier 2027 à 10 h
+  (() => {
+    const RealDate = Date;
+    const shift = new RealDate(2027, 0, 15, 10, 0).getTime() - RealDate.now();
+    class DemoDate extends RealDate {
+      constructor(...a) { super(...(a.length ? a : [RealDate.now() + shift])); }
+      static now() { return RealDate.now() + shift; }
+    }
+    window.Date = DemoDate;
+  })();
+</script>
+<script src="../option-ejp-card.js"></script>
+<script>
+  // Saison fictive : une dizaine de jours EJP de novembre à mi-janvier
+  const now = new Date();
+  const key = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const sy = now.getMonth() >= 10 ? now.getFullYear() : now.getMonth() <= 2 ? now.getFullYear() - 1 : now.getFullYear();
+  const past = ["11-24", "11-25", "12-02", "12-09", "12-10", "12-11", "12-16", "01-06", "01-07", "01-13"]
+    .map((md) => `${md.startsWith("0") ? sy + 1 : sy}-${md}`)
+    .filter((k) => k < key(now));
+  let scen = "ejp", dark = true;
+  const state = (s, a = {}) => ({ state: s, attributes: a, last_updated: String(Math.random()) });
+  const build = () => {
+    const days = [...past];
+    if (scen === "ejp") days.push(key(now));
+    const st = {
+      "sensor.ejp_aujourd_hui": state(scen === "ejp" ? "EJP" : "Normal"),
+      "sensor.ejp_demain": state(scen === "demain" ? "EJP" : scen === "normal" ? "Inconnu" : "Normal"),
+      "sensor.ejp_jours_restants": state(String(22 - days.length), { total: 22, utilises: days.length, jours: days }),
+      "binary_sensor.ejp_pointe_mobile": state(scen === "ejp" ? "on" : "off"),
+    };
+    return { states: st, themes: { darkMode: dark }, callWS: async () => ({}) };
+  };
+  const cards = [{ theme: "auto", source: "entities" }, { theme: "ha", source: "entities", show_calendar: false }];
+  const grid = document.getElementById("grid");
+  const els = cards.map((cfg) => { const el = document.createElement("option-ejp-card"); el.setConfig({ ...cfg }); grid.appendChild(el); return el; });
+  const update = () => { document.body.classList.toggle("light", !dark); const h = build(); els.forEach((el) => (el.hass = h)); };
+  document.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+    if (b.dataset.s === "theme") dark = !dark; else scen = b.dataset.s;
+    update();
+  }));
+  update();
+</script>
+</body>
+</html>
