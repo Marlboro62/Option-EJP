@@ -9,7 +9,7 @@
  */
 
 (() => {
-const CARD_VERSION = "0.2.0-beta.1";
+const CARD_VERSION = "0.2.0-beta.2";
 
 /* ------------------------------------------------------------- affichage */
 
@@ -399,7 +399,7 @@ ha-card.light { --ejp-ok: #1d8a4b; --ejp-red: #d63333; }
 .ejp-quota b small { color: var(--med-muted); font-weight: 400; }
 .ejp-prices { grid-template-columns: repeat(2, 1fr) !important; }
 .ejp-prices .tile-l { display: flex; align-items: center; gap: 6px; }
-.ejp-prices .tile.on { background: var(--med-surface); border-color: var(--ejp-hn); }
+.ejp-prices .tile.on { background: var(--med-surface); border-color: var(--med-accent, var(--ejp-hn)); }
 .ejp-prices .tile.on.pm { border-color: var(--ejp-red); }
 .sw { width: 9px; height: 9px; border-radius: 3px; display: inline-block; flex: none; }
 .sw.hn { background: var(--ejp-hn); } .sw.pm { background: var(--ejp-red); }
