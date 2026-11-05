@@ -29,6 +29,9 @@
 
 # Carte Option EJP
 
+[![HACS Default](https://img.shields.io/badge/HACS-Default-41BDF5.svg)](https://hacs.xyz/)
+[![Release](https://img.shields.io/github/v/release/Marlboro62/Option-EJP)](https://github.com/Marlboro62/Option-EJP/releases)
+
 Carte Lovelace pour Home Assistant qui suit l'**option EJP** du Tarif Bleu d'EDF : **jour EJP aujourd'hui et demain**, **Pointe Mobile** en cours, **jours EJP restants** sur les 22 de la saison et **calendrier** de la saison, avec les prix du kWh.
 
 La carte lit **elle-même** le calendrier des jours EJP publié par EDF : pas de YAML, pas d'intégration ni de capteur à créer. On l'installe, on l'ajoute au tableau de bord, c'est tout.
