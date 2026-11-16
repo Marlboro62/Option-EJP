@@ -61,7 +61,7 @@ Prix par défaut de la carte : grille EDF au **1er août 2026**, Heures normales
 - **Pastille** en haut à droite : **Pointe Mobile** pendant la pointe, **Heures normales** sinon.
 - **Jours EJP restants** sur 22, avec le nombre de jours déjà passés depuis le 1er novembre.
 - **Prix du kWh** Heures normales et Pointe Mobile, le prix en cours encadré.
-- **Calendrier de la saison** : un carré par jour de novembre à mars, les jours EJP en rouge et le total par mois.
+- **Calendrier de la saison** : un carré par jour de novembre à mars, les jours EJP en rouge, les jours normaux passés en vert, les jours à venir en gris, et le total par mois.
 
 Un clic sur une tuile ouvre le capteur correspondant.
 
