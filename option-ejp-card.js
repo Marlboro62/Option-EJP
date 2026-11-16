@@ -9,7 +9,7 @@
  */
 
 (() => {
-const CARD_VERSION = "0.2.0";
+const CARD_VERSION = "0.2.1-beta.1";
 
 /* ------------------------------------------------------------- affichage */
 
@@ -344,7 +344,9 @@ class OptionEjpCard extends HTMLElement {
 
   /** Calendrier de la saison : un carré par jour, de novembre à mars. */
   _calendar(remaining, season, now, today, tomorrow) {
-    const list = Array.isArray(remaining?.attributes?.jours) ? remaining.attributes.jours.map(String) : [];
+    // La liste des jours passés vient du calendrier EDF ou de l'attribut « jours » du capteur des jours restants
+    const known = Array.isArray(remaining?.attributes?.jours);
+    const list = known ? remaining.attributes.jours.map(String) : [];
     const ejp = new Set(list.map((s) => s.slice(0, 10)));
     const tKey = dayKey(now);
     const tmw = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
@@ -362,15 +364,19 @@ class OptionEjpCard extends HTMLElement {
         const k = dayKey(date);
         const isEjp = ejp.has(k);
         if (isEjp) count++;
-        const cls = [isEjp ? "e" : "", k === tKey ? "t" : "", date > tmw ? "f" : "", [0, 6].includes(date.getDay()) ? "we" : ""].filter(Boolean).join(" ");
+        // Jour passé (ou aujourd'hui) sans EJP : marqué « normal » seulement si la liste des jours EJP est connue
+        const past = k < tKey || (k === tKey && dayType(today?.state) === "normal");
+        const normal = !isEjp && past && known;
+        const cls = [isEjp ? "e" : "", normal ? "n" : "", k === tKey ? "t" : "", date > tmw ? "f" : "", [0, 6].includes(date.getDay()) ? "we" : ""].filter(Boolean).join(" ");
         const name = date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
-        cells += `<i class="${cls}" title="${name}${isEjp ? " : jour EJP" : ""}"></i>`;
+        cells += `<i class="${cls}" title="${name}${isEjp ? " : jour EJP" : normal ? " : jour normal" : ""}"></i>`;
       }
       return `<div class="ejp-m"><span class="ejp-m-l">${MONTHS[m]}</span><div class="ejp-m-d">${cells}</div><b class="ejp-m-n${count ? "" : " z"}">${count}</b></div>`;
     }).join("");
     return `<div class="chart ejp-cal">
-        <div class="chart-h"><span>Jours EJP de la saison ${y0}-${y0 + 1}</span><span class="sol-leg"><span><i class="e"></i>EJP</span><span><i class="t"></i>Aujourd'hui</span></span></div>
+        <div class="chart-h"><span>Jours EJP de la saison ${y0}-${y0 + 1}</span><span class="sol-leg"><span><i class="e"></i>EJP</span>${known ? `<span><i class="n"></i>Normal</span>` : ""}<span><i class="t"></i>Aujourd'hui</span></span></div>
         ${rows}
+        ${known ? "" : `<div class="ejp-cal-n">Jours passés inconnus : le capteur des jours restants ne donne pas la liste des jours EJP (attribut « jours »). Choisissez la source « Calendrier EDF » pour les voir.</div>`}
       </div>`;
   }
 }
@@ -408,12 +414,15 @@ ha-card.light { --ejp-ok: #1d8a4b; --ejp-red: #d63333; }
 .sol-leg i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; background: var(--med-line); }
 .sol-leg i.e { background: var(--ejp-red); }
 .sol-leg i.t { background: transparent; box-shadow: inset 0 0 0 1.5px var(--med-text); }
+.sol-leg i.n { background: var(--ejp-ok); }
+.ejp-cal-n { font-size: .72rem; color: var(--med-muted); margin: 6px 4px 0; }
 .ejp-m { display: grid; grid-template-columns: 44px 1fr 22px; align-items: center; gap: 8px; margin: 3px 4px; }
 .ejp-m-l { font-size: .74rem; color: var(--med-muted); text-transform: capitalize; }
 .ejp-m-d { display: grid; grid-template-columns: repeat(31, 1fr); gap: 2px; }
 .ejp-m-d i { aspect-ratio: 1; border-radius: 2px; background: var(--med-line); }
 .ejp-m-d i.we { opacity: .7; }
 .ejp-m-d i.f { opacity: .35; }
+.ejp-m-d i.n { background: var(--ejp-ok); opacity: 1; }
 .ejp-m-d i.e { background: var(--ejp-red); opacity: 1; }
 .ejp-m-d i.t { box-shadow: 0 0 0 1.5px var(--med-text); opacity: 1; }
 .ejp-m-n { font-size: .78rem; text-align: right; color: var(--ejp-red); }
@@ -573,7 +582,8 @@ const THEME_SELECT = {
 
 /** Éditeur visuel : formulaire Home Assistant construit à partir du schéma. */
 function makeEditor(schema, labels, defaults) {
-  const hasDays = schema.some((s) => s.name === "days");
+  const schemaFor = (config) => (typeof schema === "function" ? schema(config) : schema);
+  const hasDays = schemaFor({}).some((s) => s.name === "days");
   return class extends HTMLElement {
     setConfig(config) {
       this._config = { ...config };
@@ -594,21 +604,31 @@ function makeEditor(schema, labels, defaults) {
         this._form.addEventListener("value-changed", (ev) => {
           const v = { ...ev.detail.value };
           if (hasDays && v.days !== undefined) v.days = Number(v.days);
+          // Sélecteur d'entité vidé : on retire la clé plutôt que d'enregistrer une chaîne vide
+          for (const k of Object.keys(v)) if (v[k] === "" && typeof defaults[k] === "string" && defaults[k].includes(".")) delete v[k];
           this._config = v;
+          this._form.schema = schemaFor(v); // la source a pu changer : capteurs affichés ou masqués
           this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: v }, bubbles: true, composed: true }));
         });
         this.appendChild(this._form);
       }
       this._form.hass = this._hass;
-      this._form.schema = schema;
+      this._form.schema = schemaFor(this._config);
+      // Entité par défaut proposée seulement si elle existe : sinon le sélecteur affiche une erreur
+      // (ex. binary_sensor.ejp_pointe_mobile) et l'enregistre dans la configuration
+      const base = { ...defaults };
+      for (const [k, v] of Object.entries(base)) {
+        if (typeof v === "string" && /^[a-z_]+\.[a-z0-9_]+$/.test(v) && !this._hass.states?.[v]) delete base[k];
+      }
       this._form.data = hasDays
-        ? { ...defaults, ...this._config, days: String(this._config.days || defaults.days) }
-        : { ...defaults, ...this._config };
+        ? { ...base, ...this._config, days: String(this._config.days || defaults.days) }
+        : { ...base, ...this._config };
     }
   };
 }
 
-const EJP_SCHEMA = [
+// Les capteurs ne sont proposés que si la source n'est pas « Calendrier EDF »
+const EJP_SCHEMA = (config) => [
   { name: "title", selector: { text: {} } },
   {
     name: "source",
@@ -623,10 +643,12 @@ const EJP_SCHEMA = [
       },
     },
   },
-  { name: "today", selector: { entity: {} } },
-  { name: "tomorrow", selector: { entity: {} } },
-  { name: "remaining", selector: { entity: { domain: "sensor" } } },
-  { name: "peak", selector: { entity: { domain: "binary_sensor" } } },
+  ...(config?.source === "edf" ? [] : [
+    { name: "today", selector: { entity: {} } },
+    { name: "tomorrow", selector: { entity: {} } },
+    { name: "remaining", selector: { entity: { domain: "sensor" } } },
+    { name: "peak", selector: { entity: { domain: "binary_sensor" } } },
+  ]),
   { name: "price_hn", selector: { number: { min: 0, max: 200, step: 0.01, mode: "box", unit_of_measurement: "c€/kWh" } } },
   { name: "price_pm", selector: { number: { min: 0, max: 200, step: 0.01, mode: "box", unit_of_measurement: "c€/kWh" } } },
   { name: "show_prices", selector: { boolean: {} } },
